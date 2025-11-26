@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import '../models/todo.dart';
 import '../services/todo_service.dart';
+import '../services/auth_service.dart';
 
 class TodoProvider extends ChangeNotifier {
   final TodoService _todoService = TodoService();
+  final AuthService _authService = AuthService();
   
   List<Todo> _todos = [];
   List<Todo> _filteredTodos = [];
@@ -11,6 +13,7 @@ class TodoProvider extends ChangeNotifier {
   String _searchQuery = '';
   bool _isLoading = false;
   String? _errorMessage;
+  String? _currentUserId;
 
   // Getters
   List<Todo> get todos => _todos;
@@ -28,10 +31,39 @@ class TodoProvider extends ChangeNotifier {
   // Initialize provider
   TodoProvider() {
     _loadTodos();
+    _listenToAuthChanges();
+  }
+  
+  // Listen to authentication state changes
+  void _listenToAuthChanges() {
+    _authService.addListener(_onAuthStateChanged);
+  }
+  
+  // Handle authentication state changes
+  void _onAuthStateChanged() {
+    final newUserId = _authService.user?.uid;
+    
+    // If user changed, clear todos and reload
+    if (newUserId != _currentUserId) {
+      _currentUserId = newUserId;
+      if (newUserId != null) {
+        // New user logged in, load their todos
+        _loadTodos();
+      } else {
+        // User logged out, clear todos
+        clearTodos();
+      }
+    }
   }
 
   // Load todos from Firestore
   void _loadTodos() {
+    // Don't reload if no user is authenticated
+    if (_authService.user?.uid == null) {
+      clearTodos();
+      return;
+    }
+    
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -42,6 +74,9 @@ class TodoProvider extends ChangeNotifier {
         _applyFilters();
         _isLoading = false;
         notifyListeners();
+        
+        // Debug: Verify user isolation (remove in production)
+        _todoService.debugVerifyUserIsolation();
       },
       onError: (error) {
         _errorMessage = error.toString();
@@ -168,5 +203,28 @@ class TodoProvider extends ChangeNotifier {
   // Refresh todos
   void refreshTodos() {
     _loadTodos();
+  }
+  
+  // Force refresh todos (useful when switching accounts)
+  void forceRefreshTodos() {
+    _currentUserId = _authService.user?.uid;
+    _loadTodos();
+  }
+  
+  // Clear all todos (used when signing out)
+  void clearTodos() {
+    _todos.clear();
+    _filteredTodos.clear();
+    _currentFilter = 'all';
+    _searchQuery = '';
+    _errorMessage = null;
+    _currentUserId = null;
+    notifyListeners();
+  }
+  
+  @override
+  void dispose() {
+    _authService.removeListener(_listenToAuthChanges);
+    super.dispose();
   }
 }

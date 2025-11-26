@@ -8,6 +8,21 @@ class TodoService {
 
   // Get current user ID
   String? get currentUserId => _auth.currentUser?.uid;
+  
+  // Verify todo ownership
+  Future<void> _verifyTodoOwnership(String todoId) async {
+    if (currentUserId == null) throw Exception('User not authenticated');
+    
+    final todoDoc = await _firestore.collection('todos').doc(todoId).get();
+    if (!todoDoc.exists) {
+      throw Exception('Todo not found');
+    }
+    
+    final todoData = todoDoc.data();
+    if (todoData == null || todoData['userId'] != currentUserId) {
+      throw Exception('Access denied: You can only modify your own todos');
+    }
+  }
 
   // Get todos stream for current user
   Stream<List<Todo>> getTodosStream() {
@@ -42,6 +57,11 @@ class TodoService {
   // Update todo
   Future<void> updateTodo(Todo todo) async {
     if (currentUserId == null) throw Exception('User not authenticated');
+    
+    // Verify user owns this todo
+    if (todo.userId != currentUserId) {
+      throw Exception('Access denied: You can only modify your own todos');
+    }
 
     await _firestore
         .collection('todos')
@@ -51,7 +71,7 @@ class TodoService {
 
   // Toggle todo completion status
   Future<void> toggleTodoCompletion(String todoId, bool isCompleted) async {
-    if (currentUserId == null) throw Exception('User not authenticated');
+    await _verifyTodoOwnership(todoId);
 
     await _firestore
         .collection('todos')
@@ -64,14 +84,14 @@ class TodoService {
 
   // Delete todo
   Future<void> deleteTodo(String todoId) async {
-    if (currentUserId == null) throw Exception('User not authenticated');
+    await _verifyTodoOwnership(todoId);
 
     await _firestore.collection('todos').doc(todoId).delete();
   }
 
   // Update todo title
   Future<void> updateTodoTitle(String todoId, String newTitle) async {
-    if (currentUserId == null) throw Exception('User not authenticated');
+    await _verifyTodoOwnership(todoId);
 
     await _firestore
         .collection('todos')
@@ -84,7 +104,7 @@ class TodoService {
 
   // Update todo priority
   Future<void> updateTodoPriority(String todoId, String newPriority) async {
-    if (currentUserId == null) throw Exception('User not authenticated');
+    await _verifyTodoOwnership(todoId);
 
     await _firestore
         .collection('todos')
@@ -156,5 +176,17 @@ class TodoService {
             .where((todo) => todo.title.toLowerCase().contains(searchQuery.trim().toLowerCase()))
             .toList()
             ..sort((a, b) => b.createdAt.compareTo(a.createdAt))); // Sort in memory instead
+  }
+  
+  // Debug method to verify user isolation (remove in production)
+  Future<void> debugVerifyUserIsolation() async {
+    if (currentUserId == null) return;
+    
+    final allTodos = await _firestore.collection('todos').get();
+    final userTodos = allTodos.docs.where((doc) => doc.data()['userId'] == currentUserId).length;
+    final totalTodos = allTodos.docs.length;
+    
+    print('DEBUG: Current user has $userTodos todos out of $totalTodos total todos');
+    print('DEBUG: User isolation is ${userTodos == totalTodos ? "WORKING" : "BROKEN"}');
   }
 }

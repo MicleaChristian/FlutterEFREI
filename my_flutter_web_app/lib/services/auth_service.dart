@@ -14,6 +14,7 @@ class AuthService extends ChangeNotifier {
 
   User? get user => _user;
   bool get isAuthenticated => _user != null;
+  String? get userEmail => _user?.email;
 
   // Sign in with email and password
   Future<UserCredential?> signInWithEmailAndPassword(
@@ -46,6 +47,7 @@ class AuthService extends ChangeNotifier {
   // Sign out
   Future<void> signOut() async {
     await _auth.signOut();
+    // Note: TodoProvider will be cleared when the user is redirected to AuthScreen
   }
 
   // Password reset

@@ -14,11 +14,38 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
+  String? _lastUserId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkUserChange();
+    });
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+  
+  void _checkUserChange() {
+    final authService = context.read<AuthService>();
+    final currentUserId = authService.user?.uid;
+    
+    if (_lastUserId != null && _lastUserId != currentUserId) {
+      // User changed, show notification
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Switched to account: ${authService.userEmail ?? 'Unknown'}'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+    
+    _lastUserId = currentUserId;
   }
 
   @override
@@ -44,6 +71,24 @@ class _HomeScreenState extends State<HomeScreen> {
     return AppBar(
       title: const Text('Todo App'),
       backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(30),
+        child: Consumer<AuthService>(
+          builder: (context, authService, _) {
+            return Container(
+              padding: const EdgeInsets.only(bottom: 8, left: 16, right: 16),
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Logged in as: ${authService.userEmail ?? 'Unknown'}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.white70,
+                ),
+              ),
+            );
+          },
+        ),
+      ),
       actions: [
         Consumer<AuthService>(
           builder: (context, authService, _) {

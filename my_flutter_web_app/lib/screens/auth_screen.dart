@@ -73,6 +73,7 @@ class _AuthScreenState extends State<AuthScreen>
                   controller: _tabController,
                   labelColor: Colors.white,
                   unselectedLabelColor: Colors.grey[600],
+                  indicatorSize: TabBarIndicatorSize.tab,
                   indicator: BoxDecoration(
                     color: Colors.blue,
                     borderRadius: BorderRadius.circular(8),
